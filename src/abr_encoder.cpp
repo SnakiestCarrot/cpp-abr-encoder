@@ -1,6 +1,9 @@
 #include "abr_encoder.hpp"
 
 #include <iostream>
+#include <libavcodec/avcodec.h>
+#include <libavcodec/codec.h>
+#include <libavcodec/codec_id.h>
 #include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
 
@@ -9,9 +12,6 @@ ABREncoder::~ABREncoder() {
 }
 
 bool ABREncoder::open_input(const std::string& input_path) {
-    // TODO: avformat_open_input, avformat_find_stream_info,
-    // locate best video stream (av_find_best_stream) and store its index.
-    
     if (avformat_open_input(&input_format_ctx_, input_path.c_str(), nullptr, nullptr) < 0) {
         return false;
     }
@@ -32,7 +32,25 @@ bool ABREncoder::open_input(const std::string& input_path) {
 bool ABREncoder::initialize_decoders() {
     // TODO: avcodec_find_decoder, avcodec_alloc_context3,
     // avcodec_parameters_to_context, avcodec_open2.
-    return false;
+    const AVCodec* decoder = avcodec_find_decoder(input_format_ctx_->streams[video_stream_index_]->codecpar->codec_id);
+    if (!decoder) {
+        return false;
+    }
+    
+    decoder_ctx_ = avcodec_alloc_context3(decoder);
+    
+    if (!decoder_ctx_) {
+        return false;
+    }
+    
+    if (avcodec_parameters_to_context(decoder_ctx_, input_format_ctx_->streams[video_stream_index_]->codecpar) < 0) {
+        return false;
+    }
+
+    if (avcodec_open2(decoder_ctx_, decoder, nullptr) < 0) {
+        return false;
+    }
+    return true;
 }
 
 bool ABREncoder::initialize_encoders(const std::vector<VideoProfile>& profiles,
